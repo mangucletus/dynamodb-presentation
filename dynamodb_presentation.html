@@ -1,0 +1,1259 @@
+<script type="text/javascript">
+        var gk_isXlsx = false;
+        var gk_xlsxFileLookup = {};
+        var gk_fileData = {};
+        function filledCell(cell) {
+          return cell !== '' && cell != null;
+        }
+        function loadFileData(filename) {
+        if (gk_isXlsx && gk_xlsxFileLookup[filename]) {
+            try {
+                var workbook = XLSX.read(gk_fileData[filename], { type: 'base64' });
+                var firstSheetName = workbook.SheetNames[0];
+                var worksheet = workbook.Sheets[firstSheetName];
+
+                // Convert sheet to JSON to filter blank rows
+                var jsonData = XLSX.utils.sheet_to_json(worksheet, { header: 1, blankrows: false, defval: '' });
+                // Filter out blank rows (rows where all cells are empty, null, or undefined)
+                var filteredData = jsonData.filter(row => row.some(filledCell));
+
+                // Heuristic to find the header row by ignoring rows with fewer filled cells than the next row
+                var headerRowIndex = filteredData.findIndex((row, index) =>
+                  row.filter(filledCell).length >= filteredData[index + 1]?.filter(filledCell).length
+                );
+                // Fallback
+                if (headerRowIndex === -1 || headerRowIndex > 25) {
+                  headerRowIndex = 0;
+                }
+
+                // Convert filtered JSON back to CSV
+                var csv = XLSX.utils.aoa_to_sheet(filteredData.slice(headerRowIndex)); // Create a new sheet from filtered array of arrays
+                csv = XLSX.utils.sheet_to_csv(csv, { header: 1 });
+                return csv;
+            } catch (e) {
+                console.error(e);
+                return "";
+            }
+        }
+        return gk_fileData[filename] || "";
+        }
+        </script><!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>DynamoDB Fundamentals</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #1e3c72 0%, #2a5298 100%);
+            color: #333;
+            overflow: hidden;
+            height: 100vh;
+        }
+
+        .slideshow-container {
+            position: relative;
+            width: 100vw;
+            height: 100vh;
+        }
+
+        .slide {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100vw;
+            height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            opacity: 0;
+            visibility: hidden;
+            transition: opacity 0.3s ease-in-out;
+        }
+
+        .slide.active {
+            opacity: 1;
+            visibility: visible;
+        }
+
+        .slide-content-wrapper {
+            background: white;
+            width: 95vw;
+            height: 90vh;
+            border-radius: 12px;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+            padding: 60px;
+            overflow-y: auto;
+            position: relative;
+        }
+
+        .slide-header {
+            border-bottom: 3px solid #2a5298;
+            padding-bottom: 20px;
+            margin-bottom: 40px;
+        }
+
+        .slide-header h1 {
+            font-size: 2.8em;
+            color: #1e3c72;
+            font-weight: 700;
+        }
+
+        .slide-header h2 {
+            font-size: 2.2em;
+            color: #2a5298;
+            font-weight: 600;
+        }
+
+        .slide-content {
+            font-size: 1.3em;
+            line-height: 1.6;
+            color: #444;
+        }
+
+        .title-slide .slide-content-wrapper {
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            text-align: center;
+        }
+
+        .title-slide h1 {
+            font-size: 3.5em;
+            color: #1e3c72;
+            margin-bottom: 30px;
+            font-weight: 800;
+        }
+
+        .title-slide .subtitle {
+            font-size: 1.8em;
+            color: #666;
+            margin-bottom: 50px;
+        }
+
+        .presenter-info {
+            background: #f8f9fa;
+            padding: 30px;
+            border-radius: 8px;
+            border-left: 5px solid #2a5298;
+        }
+
+        .presenter-info h3 {
+            color: #1e3c72;
+            font-size: 1.4em;
+            margin-bottom: 10px;
+        }
+
+        .presenter-info p {
+            color: #666;
+            font-size: 1.1em;
+        }
+
+        .two-column {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 40px;
+            align-items: start;
+        }
+
+        .feature-box {
+            background: #f8f9fa;
+            padding: 25px;
+            border-radius: 8px;
+            border-left: 4px solid #2a5298;
+            margin: 20px 0;
+        }
+
+        .feature-box h3 {
+            color: #1e3c72;
+            font-size: 1.4em;
+            margin-bottom: 15px;
+        }
+
+        .feature-box h4 {
+            color: #1e3c72;
+            font-size: 1.2em;
+            margin-bottom: 10px;
+        }
+
+        .feature-box p {
+            color: #666;
+            font-size: 1.1em;
+        }
+
+        .architecture-diagram {
+            font-family: monospace;
+            font-size: 0.9em;
+            line-height: 1.4;
+            background: #f1f3f4;
+            padding: 20px;
+            border-radius: 8px;
+            white-space: pre;
+            overflow-x: auto;
+            margin: 20px auto;
+            display: block;
+            max-width: fit-content;
+        }
+
+        .aws-diagram {
+            background: #f8f9fa;
+            padding: 30px;
+            border-radius: 8px;
+            margin: 20px 0;
+        }
+
+        .aws-flow {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin: 30px 0;
+            padding: 20px;
+            background: white;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+
+        .aws-service {
+            text-align: center;
+            flex: 1;
+            padding: 20px;
+        }
+
+        .service-icon {
+            width: 80px;
+            height: 80px;
+            margin: 0 auto 15px;
+            border-radius: 8px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 2em;
+            color: white;
+            font-weight: bold;
+        }
+
+        .mobile-icon { background: #6c757d; }
+        .apigateway-icon { background: #8b5cf6; }
+        .lambda-icon { background: #ff8c00; }
+        .dynamodb-icon { background: #c53030; }
+
+        .service-name {
+            font-weight: 600;
+            color: #1e3c72;
+            margin-bottom: 10px;
+        }
+
+        .service-desc {
+            font-size: 0.9em;
+            color: #666;
+            line-height: 1.4;
+        }
+
+        .flow-arrow {
+            font-size: 2em;
+            color: #2a5298;
+            margin: 0 20px;
+        }
+
+        ul {
+            margin: 20px 0;
+            padding-left: 30px;
+        }
+
+        li {
+            margin: 15px 0;
+            font-size: 1.2em;
+        }
+
+        .highlight {
+            background: #fff3cd;
+            padding: 20px;
+            border-radius: 8px;
+            border-left: 4px solid #ffc107;
+            margin: 20px 0;
+        }
+
+        .code-example {
+            background: #2d3748;
+            color: #e2e8f0;
+            padding: 20px;
+            border-radius: 8px;
+            font-family: 'Courier New', monospace;
+            margin: 20px 0;
+            overflow-x: auto;
+        }
+
+        .slide-number {
+            position: absolute;
+            bottom: 20px;
+            right: 30px;
+            color: #666;
+            font-size: 1.1em;
+        }
+
+        .navigation {
+            position: fixed;
+            bottom: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: rgba(255, 255, 255, 0.9);
+            padding: 15px 25px;
+            border-radius: 25px;
+            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.2);
+            display: flex;
+            gap: 15px;
+            align-items: center;
+            z-index: 1000;
+        }
+
+        .nav-btn {
+            background: #2a5298;
+            color: white;
+            border: none;
+            padding: 8px 16px;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 14px;
+            transition: background 0.3s;
+        }
+
+        .nav-btn:hover {
+            background: #1e3c72;
+        }
+
+        .nav-btn:disabled {
+            background: #ccc;
+            cursor: not-allowed;
+        }
+
+        .slide-counter {
+            font-size: 14px;
+            color: #666;
+            font-weight: 500;
+        }
+
+        .comparison-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 20px 0;
+        }
+
+        .comparison-table th,
+        .comparison-table td {
+            padding: 15px;
+            text-align: left;
+            border-bottom: 1px solid #ddd;
+        }
+
+        .comparison-table th {
+            background: #f8f9fa;
+            color: #1e3c72;
+            font-weight: 600;
+        }
+
+        .comparison-table tr:nth-child(even) {
+            background: #f8f9fa;
+        }
+
+        .pricing-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 30px;
+            margin: 20px 0;
+        }
+
+        .pricing-card {
+            background: #f8f9fa;
+            padding: 25px;
+            border-radius: 8px;
+            border-left: 4px solid #2a5298;
+        }
+
+        .pricing-card h3 {
+            color: #1e3c72;
+            margin-bottom: 15px;
+        }
+
+        .cost-optimization {
+            background: #e8f5e8;
+            padding: 20px;
+            border-radius: 8px;
+            border-left: 4px solid #28a745;
+            margin: 20px 0;
+        }
+    </style>
+</head>
+<body>
+    <div class="slideshow-container">
+        <!-- Slide 1: Title -->
+        <div class="slide active title-slide">
+            <div class="slide-content-wrapper">
+                <h1>Amazon DynamoDB Fundamentals</h1>
+                <div class="subtitle">NoSQL Concepts, Tables, Primary Keys & Basic Operations</div>
+                <div class="presenter-info">
+                    <h3>Cletus Nehinlalei Mangu</h3>
+                    <p>DevOps Engineer @ AmaliTech Gh.</p>
+                </div>
+                <div class="slide-number">1</div>
+            </div>
+        </div>
+
+        <!-- Slide 2: Introduction -->
+        <div class="slide">
+            <div class="slide-content-wrapper">
+                <div class="slide-header">
+                    <h2>What is Amazon DynamoDB?</h2>
+                </div>
+                <div class="slide-content">
+                    <div class="feature-box">
+                        <h3>Serverless NoSQL Database</h3>
+                        <p>Fully managed database service with single-digit millisecond performance at any scale</p>
+                    </div>
+                    <div class="two-column">
+                        <div>
+                            <h3>Key Benefits</h3>
+                            <ul>
+                                <li>No servers to manage</li>
+                                <li>Automatic scaling</li>
+                                <li>Built-in high availability</li>
+                                <li>Consistent performance</li>
+                                <li>Pay-for-what-you-use</li>
+                            </ul>
+                        </div>
+                        <div>
+                            <h3>Real-World Usage</h3>
+                            <ul>
+                                <li>Powers Amazon.com properties</li>
+                                <li>Handles trillions of API calls</li>
+                                <li>Serves 500K+ requests/second</li>
+                                <li>Tables exceed 200TB in size</li>
+                            </ul>
+                        </div>
+                    </div>
+                </div>
+                <div class="slide-number">2</div>
+            </div>
+        </div>
+
+        <!-- Slide 3: Core Characteristics -->
+        <div class="slide">
+            <div class="slide-content-wrapper">
+                <div class="slide-header">
+                    <h2>DynamoDB Core Characteristics</h2>
+                </div>
+                <div class="slide-content">
+                    <div class="two-column">
+                        <div class="feature-box">
+                            <h3>Serverless</h3>
+                            <p>Zero infrastructure management, no maintenance windows, automatic patching</p>
+                        </div>
+                        <div class="feature-box">
+                            <h3>NoSQL</h3>
+                            <p>Key-value and document data models, flexible schema, no JOIN operations</p>
+                        </div>
+                    </div>
+                    <div class="two-column">
+                        <div class="feature-box">
+                            <h3>Fully Managed</h3>
+                            <p>AWS handles scaling, monitoring, security, backups automatically</p>
+                        </div>
+                        <div class="feature-box">
+                            <h3>High Performance</h3>
+                            <p>Single-digit millisecond latency, consistent at any scale</p>
+                        </div>
+                    </div>
+                    <div class="highlight">
+                        <strong>Key Difference from Relational Databases:</strong> Purpose-built for scale and performance, trades query flexibility for speed and scalability
+                    </div>
+                </div>
+                <div class="slide-number">3</div>
+            </div>
+        </div>
+
+        <!-- Slide 4: Core Components -->
+        <div class="slide">
+            <div class="slide-content-wrapper">
+                <div class="slide-header">
+                    <h2>Core Components & Terminology</h2>
+                </div>
+                <div class="slide-content">
+                    <div class="two-column">
+                        <div>
+                            <div class="feature-box">
+                                <h3>Tables</h3>
+                                <p>Collection of data items. Schemaless except for primary key requirement.</p>
+                            </div>
+                            <div class="feature-box">
+                                <h3>Items</h3>
+                                <p>Individual records (like rows). Each item can have different attributes.</p>
+                            </div>
+                            <div class="feature-box">
+                                <h3>Attributes</h3>
+                                <p>Basic data elements (like columns). Support various data types.</p>
+                            </div>
+                        </div>
+                        <div>
+                            <h3>Data Types</h3>
+                            <ul>
+                                <li><strong>Scalar:</strong> String, Number, Binary, Boolean, Null</li>
+                                <li><strong>Document:</strong> List, Map</li>
+                                <li><strong>Set:</strong> String Set, Number Set, Binary Set</li>
+                            </ul>
+                            <div class="code-example">
+{
+  "UserId": "player123",
+  "PlayerName": "John Doe",
+  "Stats": {
+    "Goals": 15,
+    "Assists": 8
+  },
+  "Positions": ["Forward", "Midfielder"]
+}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="slide-number">4</div>
+            </div>
+        </div>
+
+        <!-- Slide 5: Architecture -->
+        <div class="slide">
+            <div class="slide-content-wrapper">
+                <div class="slide-header">
+                    <h2>DynamoDB Architecture</h2>
+                </div>
+                <div class="slide-content">
+                    <div class="architecture-diagram">
+┌─────────────────────────────────────────────────────┐
+│                 Application Layer                    │
+└─────────────────────┬───────────────────────────────┘
+                      │
+┌─────────────────────▼───────────────────────────────┐
+│              DynamoDB Service API                    │
+└─────────────────────┬───────────────────────────────┘
+                      │
+┌─────────────────────▼───────────────────────────────┐
+│            Request Router & Load Balancer           │
+└─────┬──────────────────────────────────┬───────────┘
+      │                                  │
+┌─────▼────────┐    ┌────────────┐    ┌───▼──────────┐
+│ Partition A  │    │Partition B │    │ Partition C  │
+│    AZ-1      │    │   AZ-2     │    │    AZ-3      │
+│ [SSD Storage]│    │[SSD Storage]│   │ [SSD Storage]│
+└──────────────┘    └────────────┘    └──────────────┘
+                    </div>
+                    <div class="two-column">
+                        <div>
+                            <h3>Key Features</h3>
+                            <ul>
+                                <li>Automatic data partitioning</li>
+                                <li>3-AZ replication for durability</li>
+                                <li>SSD storage for performance</li>
+                            </ul>
+                        </div>
+                        <div>
+                            <h3>Benefits</h3>
+                            <ul>
+                                <li>Built-in fault tolerance</li>
+                                <li>Automatic scaling</li>
+                                <li>Consistent performance</li>
+                            </ul>
+                        </div>
+                    </div>
+                </div>
+                <div class="slide-number">5</div>
+            </div>
+        </div>
+
+        <!-- Slide 6: Cloud Solution Architecture -->
+        <div class="slide">
+            <div class="slide-content-wrapper">
+                <div class="slide-header">
+                    <h2>DynamoDB in Cloud Solutions</h2>
+                </div>
+                <div class="slide-content">
+                    <p><strong>How is DynamoDB used to architect a cloud solution?</strong></p>
+                    <p>DynamoDB integrates with multiple AWS services to create comprehensive cloud solutions. These integrations extend database capabilities for processing, analyzing, and delivering data efficiently.</p>
+                    
+                    <div class="aws-diagram">
+                        <div class="aws-flow">
+                            <div class="aws-service">
+                                <div class="service-icon mobile-icon">📱</div>
+                                <div class="service-name">Client Application</div>
+                                <div class="service-desc">Mobile and web applications send secure requests</div>
+                            </div>
+                            <div class="flow-arrow">→</div>
+                            <div class="aws-service">
+                                <div class="service-icon apigateway-icon">🚪</div>
+                                <div class="service-name">Amazon API Gateway</div>
+                                <div class="service-desc">Entry point for HTTP requests, invokes Lambda functions</div>
+                            </div>
+                            <div class="flow-arrow">→</div>
+                            <div class="aws-service">
+                                <div class="service-icon lambda-icon">λ</div>
+                                <div class="service-name">AWS Lambda</div>
+                                <div class="service-desc">Executes business logic, reads/writes to DynamoDB</div>
+                            </div>
+                            <div class="flow-arrow">→</div>
+                            <div class="aws-service">
+                                <div class="service-icon dynamodb-icon">⚡</div>
+                                <div class="service-name">Amazon DynamoDB</div>
+                                <div class="service-desc">Stores data with consistent performance at any scale</div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="highlight">
+                        <strong>Benefits:</strong> This serverless architecture provides automatic scaling, high availability, and operational simplicity while maintaining consistent performance.
+                    </div>
+                </div>
+                <div class="slide-number">6</div>
+            </div>
+        </div>
+
+        <!-- Slide 7: Primary Keys -->
+        <div class="slide">
+            <div class="slide-content-wrapper">
+                <div class="slide-header">
+                    <h2>Primary Keys - The Foundation</h2>
+                </div>
+                <div class="slide-content">
+                    <div class="two-column">
+                        <div class="feature-box">
+                            <h3>Simple Primary Key</h3>
+                            <p><strong>Partition Key Only</strong></p>
+                            <ul>
+                                <li>Uniquely identifies each item</li>
+                                <li>Good for simple lookups</li>
+                                <li>Example: User profiles</li>
+                            </ul>
+                            <div class="code-example">
+Table: Users
+Primary Key: UserId (Partition Key)
+                            </div>
+                        </div>
+                        <div class="feature-box">
+                            <h3>Composite Primary Key</h3>
+                            <p><strong>Partition Key + Sort Key</strong></p>
+                            <ul>
+                                <li>Enables range queries</li>
+                                <li>Multiple items per partition</li>
+                                <li>Example: Time-series data</li>
+                            </ul>
+                            <div class="code-example">
+Table: GameScores
+Partition Key: UserId
+Sort Key: GameTitle
+                            </div>
+                        </div>
+                    </div>
+                    <div class="highlight">
+                        <strong>Critical Design Decision:</strong> Primary key structure determines query patterns and performance. Choose high-cardinality partition keys for even distribution.
+                    </div>
+                </div>
+                <div class="slide-number">7</div>
+            </div>
+        </div>
+
+        <!-- Slide 8: Operations -->
+        <div class="slide">
+            <div class="slide-content-wrapper">
+                <div class="slide-header">
+                    <h2>Basic Operations</h2>
+                </div>
+                <div class="slide-content">
+                    <div class="two-column">
+                        <div>
+                            <h3>Item Operations</h3>
+                            <div class="feature-box">
+                                <ul>
+                                    <li><strong>PutItem:</strong> Create/replace item</li>
+                                    <li><strong>GetItem:</strong> Retrieve by primary key</li>
+                                    <li><strong>UpdateItem:</strong> Modify attributes</li>
+                                    <li><strong>DeleteItem:</strong> Remove item</li>
+                                </ul>
+                            </div>
+                            <h3>Batch Operations</h3>
+                            <div class="feature-box">
+                                <ul>
+                                    <li><strong>BatchGetItem:</strong> Up to 100 items</li>
+                                    <li><strong>BatchWriteItem:</strong> Up to 25 items</li>
+                                </ul>
+                            </div>
+                        </div>
+                        <div>
+                            <h3>Query vs Scan</h3>
+                            <table class="comparison-table">
+                                <tr>
+                                    <th>Query</th>
+                                    <th>Scan</th>
+                                </tr>
+                                <tr>
+                                    <td>Uses primary key</td>
+                                    <td>Examines every item</td>
+                                </tr>
+                                <tr>
+                                    <td>Efficient & fast</td>
+                                    <td>Less efficient</td>
+                                </tr>
+                                <tr>
+                                    <td>Limited capacity consumption</td>
+                                    <td>Consumes full table capacity</td>
+                                </tr>
+                                <tr>
+                                    <td>Preferred method</td>
+                                    <td>Use sparingly</td>
+                                </tr>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+                <div class="slide-number">8</div>
+            </div>
+        </div>
+
+        <!-- Slide 9: Secondary Indexes -->
+        <div class="slide">
+            <div class="slide-content-wrapper">
+                <div class="slide-header">
+                    <h2>Secondary Indexes</h2>
+                </div>
+                <div class="slide-content">
+                    <div class="two-column">
+                        <div class="feature-box">
+                            <h3>Global Secondary Index (GSI)</h3>
+                            <ul>
+                                <li>Different partition and sort keys</li>
+                                <li>Spans all table partitions</li>
+                                <li>Eventually consistent reads only</li>
+                                <li>Has own capacity settings</li>
+                                <li>Up to 20 GSIs per table</li>
+                            </ul>
+                        </div>
+                        <div class="feature-box">
+                            <h3>Local Secondary Index (LSI)</h3>
+                            <ul>
+                                <li>Same partition key as base table</li>
+                                <li>Different sort key</li>
+                                <li>Strongly consistent reads possible</li>
+                                <li>Shares capacity with base table</li>
+                                <li>10GB limit per partition</li>
+                            </ul>
+                        </div>
+                    </div>
+                    <div class="highlight">
+                        <strong>Best Practice:</strong> Design indexes based on access patterns. Each GSI should serve specific query requirements to justify the additional cost.
+                    </div>
+                    <div class="feature-box">
+                        <h3>Example: Football League Table</h3>
+                        <div class="code-example">
+Base Table: Player data with UserId (PK) + GameTitle (SK)
+GSI: PlayersByTeam - TeamId (PK) + PlayerName (SK)
+Use case: "Show all players for Manchester United"
+                        </div>
+                    </div>
+                </div>
+                <div class="slide-number">9</div>
+            </div>
+        </div>
+
+        <!-- Slide 10: Capacity Management & Pricing -->
+        <div class="slide">
+            <div class="slide-content-wrapper">
+                <div class="slide-header">
+                    <h2>Capacity Management & Pricing</h2>
+                </div>
+                <div class="slide-content">
+                    <div class="pricing-grid">
+                        <div class="pricing-card">
+                            <h3>On-Demand Mode</h3>
+                            <ul>
+                                <li>Pay-per-request pricing</li>
+                                <li>Automatic scaling</li>
+                                <li>No capacity planning</li>
+                                <li>Good for unpredictable workloads</li>
+                                <li>Scales to zero when idle</li>
+                            </ul>
+                            <p><strong>Use when:</strong> Traffic is unpredictable or intermittent</p>
+                        </div>
+                        <div class="pricing-card">
+                            <h3>Provisioned Mode</h3>
+                            <ul>
+                                <li>Reserve read/write capacity</li>
+                                <li>More cost-effective for predictable traffic</li>
+                                <li>Auto Scaling available</li>
+                                <li>Good for consistent workloads</li>
+                            </ul>
+                            <p><strong>Use when:</strong> Traffic is predictable and consistent</p>
+                        </div>
+                    </div>
+                    
+                    <h3>Capacity Units</h3>
+                    <div class="two-column">
+                        <div class="feature-box">
+                            <h3>Read Capacity Units (RCU)</h3>
+                            <p>1 RCU = 1 strongly consistent read/second for item ≤ 4KB<br>
+                            1 RCU = 2 eventually consistent reads/second for item ≤ 4KB</p>
+                        </div>
+                        <div class="feature-box">
+                            <h3>Write Capacity Units (WCU)</h3>
+                            <p>1 WCU = 1 write/second for item ≤ 1KB</p>
+                        </div>
+                    </div>
+
+                    <div class="highlight">
+                        <strong>Free Tier:</strong> 25 GB storage + 25 RCUs + 25 WCUs (200M requests/month) - Always available
+                    </div>
+                </div>
+                <div class="slide-number">10</div>
+            </div>
+        </div>
+
+        <!-- Slide 11: Cost Optimization -->
+        <div class="slide">
+            <div class="slide-content-wrapper">
+                <div class="slide-header">
+                    <h2>Cost Optimization Strategies</h2>
+                </div>
+                <div class="slide-content">
+                    <div class="two-column">
+                        <div>
+                            <h3>Capacity Optimization</h3>
+                            <div class="cost-optimization">
+                                <ul>
+                                    <li>Choose appropriate capacity mode for workload</li>
+                                    <li>Use Auto Scaling for provisioned mode</li>
+                                    <li>Monitor capacity utilization with CloudWatch</li>
+                                    <li>Right-size provisioned capacity</li>
+                                </ul>
+                            </div>
+                            
+                            <h3>Storage Optimization</h3>
+                            <div class="cost-optimization">
+                                <ul>
+                                    <li>Use TTL to automatically delete expired items</li>
+                                    <li>Consider DynamoDB Standard-IA for infrequent access</li>
+                                    <li>Implement data archival strategies</li>
+                                    <li>Compress large items when possible</li>
+                                </ul>
+                            </div>
+                        </div>
+                        <div>
+                            <h3>Feature Optimization</h3>
+                            <div class="cost-optimization">
+                                <ul>
+                                    <li>Minimize number of global table regions</li>
+                                    <li>Optimize secondary index usage</li>
+                                    <li>Use appropriate backup retention periods</li>
+                                    <li>Monitor DynamoDB Streams usage</li>
+                                </ul>
+                            </div>
+
+                            <h3>Query Optimization</h3>
+                            <div class="cost-optimization">
+                                <ul>
+                                    <li>Use Query instead of Scan operations</li>
+                                    <li>Implement pagination for large result sets</li>
+                                    <li>Use projection expressions to limit returned data</li>
+                                    <li>Leverage eventually consistent reads when possible</li>
+                                </ul>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="highlight">
+                        <strong>Cost Components:</strong> Read/write requests, data storage, data transfer, global tables, backups, and additional features like DAX
+                    </div>
+                </div>
+                <div class="slide-number">11</div>
+            </div>
+        </div>
+
+        <!-- Slide 12: Security -->
+        <div class="slide">
+            <div class="slide-content-wrapper">
+                <div class="slide-header">
+                    <h2>Security Features</h2>
+                </div>
+                <div class="slide-content">
+                    <div class="two-column">
+                        <div>
+                            <h3>Authentication & Authorization</h3>
+                            <div class="feature-box">
+                                <ul>
+                                    <li>AWS IAM integration</li>
+                                    <li>No database usernames/passwords</li>
+                                    <li>Fine-grained access control</li>
+                                    <li>Attribute-level permissions</li>
+                                    <li>Resource-based policies</li>
+                                </ul>
+                            </div>
+                            <h3>Compliance Standards</h3>
+                            <div class="feature-box">
+                                <ul>
+                                    <li>HIPAA eligible</li>
+                                    <li>PCI DSS compliant</li>
+                                    <li>GDPR compliant</li>
+                                    <li>SOC certifications</li>
+                                </ul>
+                            </div>
+                        </div>
+                        <div>
+                            <h3>Encryption</h3>
+                            <div class="feature-box">
+                                <h4>At Rest</h4>
+                                <ul>
+                                    <li>Default: AWS-owned keys (free)</li>
+                                    <li>AWS-managed KMS keys</li>
+                                    <li>Customer-managed KMS keys</li>
+                                    <li>Transparent encryption/decryption</li>
+                                </ul>
+                            </div>
+                            <div class="feature-box">
+                                <h4>In Transit</h4>
+                                <ul>
+                                    <li>TLS 1.2 for all API calls</li>
+                                    <li>VPC endpoints for private access</li>
+                                </ul>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="slide-number">12</div>
+            </div>
+        </div>
+
+        <!-- Slide 13: High Availability -->
+        <div class="slide">
+            <div class="slide-content-wrapper">
+                <div class="slide-header">
+                    <h2>Resilience & High Availability</h2>
+                </div>
+                <div class="slide-content">
+                    <div class="two-column">
+                        <div class="feature-box">
+                            <h3>Built-in Durability</h3>
+                            <ul>
+                                <li>Automatic 3-AZ replication</li>
+                                <li>99.99% availability SLA (single region)</li>
+                                <li>Synchronous replication</li>
+                                <li>Built-in fault tolerance</li>
+                            </ul>
+                        </div>
+                        <div class="feature-box">
+                            <h3>Global Tables</h3>
+                            <ul>
+                                <li>Multi-active replication across regions</li>
+                                <li>99.999% availability SLA</li>
+                                <li>Local read/write performance</li>
+                                <li>Automatic conflict resolution</li>
+                            </ul>
+                        </div>
+                    </div>
+                    <h3>Backup & Recovery</h3>
+                    <div class="two-column">
+                        <div class="feature-box">
+                            <h3>Point-in-Time Recovery</h3>
+                            <ul>
+                                <li>Continuous backups</li>
+                                <li>Per-second granularity</li>
+                                <li>35-day retention (configurable 1-35 days)</li>
+                                <li>No performance impact</li>
+                            </ul>
+                        </div>
+                        <div class="feature-box">
+                            <h3>On-Demand Backups</h3>
+                            <ul>
+                                <li>Full table backups</li>
+                                <li>Long-term retention</li>
+                                <li>Cross-account/region copying</li>
+                                <li>AWS Backup integration</li>
+                            </ul>
+                        </div>
+                    </div>
+                </div>
+                <div class="slide-number">13</div>
+            </div>
+        </div>
+
+        <!-- Slide 14: Service Integrations -->
+        <div class="slide">
+            <div class="slide-content-wrapper">
+                <div class="slide-header">
+                    <h2>AWS Service Integrations</h2>
+                </div>
+                <div class="slide-content">
+                    <div class="two-column">
+                        <div>
+                            <h3>Serverless Integrations</h3>
+                            <div class="feature-box">
+                                <ul>
+                                    <li><strong>Lambda:</strong> Event-driven triggers via Streams</li>
+                                    <li><strong>API Gateway:</strong> RESTful API endpoints</li>
+                                    <li><strong>AppSync:</strong> GraphQL APIs with real-time sync</li>
+                                </ul>
+                            </div>
+                            <h3>Analytics</h3>
+                            <div class="feature-box">
+                                <ul>
+                                    <li><strong>Amazon Redshift:</strong> Zero-ETL analytics</li>
+                                    <li><strong>OpenSearch:</strong> Full-text & vector search</li>
+                                    <li><strong>S3:</strong> Data export/import</li>
+                                </ul>
+                            </div>
+                        </div>
+                        <div>
+                            <h3>Performance & Monitoring</h3>
+                            <div class="feature-box">
+                                <ul>
+                                    <li><strong>DAX:</strong> In-memory caching (10x faster)</li>
+                                    <li><strong>CloudWatch:</strong> Metrics & alarms</li>
+                                    <li><strong>CloudTrail:</strong> API audit logging</li>
+                                </ul>
+                            </div>
+                            <h3>Event-Driven Architecture</h3>
+                            <div class="feature-box">
+                                <ul>
+                                    <li><strong>DynamoDB Streams:</strong> Real-time data changes</li>
+                                    <li><strong>Kinesis Data Streams:</strong> Extended retention</li>
+                                </ul>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="slide-number">14</div>
+            </div>
+        </div>
+
+        <!-- Slide 15: Best Practices -->
+        <div class="slide">
+            <div class="slide-content-wrapper">
+                <div class="slide-header">
+                    <h2>Design Best Practices</h2>
+                </div>
+                <div class="slide-content">
+                    <div class="two-column">
+                        <div>
+                            <h3>Data Modeling</h3>
+                            <div class="feature-box">
+                                <ul>
+                                    <li>Start with access patterns, not entities</li>
+                                    <li>Single table design where possible</li>
+                                    <li>Denormalize data for read performance</li>
+                                    <li>Use high-cardinality partition keys</li>
+                                </ul>
+                            </div>
+                            <h3>Performance Optimization</h3>
+                            <div class="feature-box">
+                                <ul>
+                                    <li>Prefer Query over Scan</li>
+                                    <li>Use eventually consistent reads</li>
+                                    <li>Implement pagination for large results</li>
+                                    <li>Avoid hot partitions</li>
+                                </ul>
+                            </div>
+                        </div>
+                        <div>
+                            <h3>Cost Optimization</h3>
+                            <div class="feature-box">
+                                <ul>
+                                    <li>Choose appropriate capacity mode</li>
+                                    <li>Use TTL for automatic deletion</li>
+                                    <li>Monitor capacity utilization</li>
+                                    <li>Minimize secondary indexes</li>
+                                </ul>
+                            </div>
+                            <h3>Security & Operations</h3>
+                            <div class="feature-box">
+                                <ul>
+                                    <li>Implement least privilege access</li>
+                                    <li>Enable encryption at rest</li>
+                                    <li>Use VPC endpoints for private access</li>
+                                    <li>Set up CloudWatch monitoring</li>
+                                </ul>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="highlight">
+                        <strong>Golden Rule:</strong> Design your table structure around your access patterns, not your data relationships
+                    </div>
+                </div>
+                <div class="slide-number">15</div>
+            </div>
+        </div>
+
+        <!-- Slide 16: Use Cases -->
+        <div class="slide">
+            <div class="slide-content-wrapper">
+                <div class="slide-header">
+                    <h2>Common Use Cases</h2>
+                </div>
+                <div class="slide-content">
+                    <div class="two-column">
+                        <div class="feature-box">
+                            <h3>Web & Mobile Applications</h3>
+                            <ul>
+                                <li>User profiles and preferences</li>
+                                <li>Session management</li>
+                                <li>Shopping carts</li>
+                                <li>Content metadata</li>
+                            </ul>
+                        </div>
+                        <div class="feature-box">
+                            <h3>Gaming</h3>
+                            <ul>
+                                <li>Player profiles and stats</li>
+                                <li>Leaderboards</li>
+                                <li>Game state storage</li>
+                                <li>Session history</li>
+                            </ul>
+                        </div>
+                    </div>
+                    <div class="two-column">
+                        <div class="feature-box">
+                            <h3>IoT & Real-time Analytics</h3>
+                            <ul>
+                                <li>Time-series data</li>
+                                <li>Sensor data collection</li>
+                                <li>Real-time dashboards</li>
+                                <li>Event logging</li>
+                            </ul>
+                        </div>
+                        <div class="feature-box">
+                            <h3>Financial Services</h3>
+                            <ul>
+                                <li>Transaction processing</li>
+                                <li>Trading platforms</li>
+                                <li>Risk management</li>
+                                <li>Audit trails</li>
+                            </ul>
+                        </div>
+                    </div>
+                    <div class="highlight">
+                        <strong>When to Choose DynamoDB:</strong> High scale, predictable performance requirements, operational simplicity, serverless architecture
+                    </div>
+                </div>
+                <div class="slide-number">16</div>
+            </div>
+        </div>
+
+        <!-- Slide 17: Thank You -->
+        <div class="slide title-slide">
+            <div class="slide-content-wrapper">
+                <h1>Thank You</h1>
+                <div class="subtitle">Questions & Discussion</div>
+                <div class="presenter-info">
+                    <h3>Cletus Nehinlalei Mangu</h3>
+                    <p>DevOps Engineer @ AmaliTech Gh.</p>
+                </div>
+                <div class="slide-number">17</div>
+            </div>
+        </div>
+    </div>
+
+    <div class="navigation">
+        <button class="nav-btn" id="prevBtn">← Previous</button>
+        <span class="slide-counter" id="slideCounter">1 / 17</span>
+        <button class="nav-btn" id="nextBtn">Next →</button>
+    </div>
+
+    <script>
+        let currentSlide = 0;
+        const slides = document.querySelectorAll('.slide');
+        const totalSlides = slides.length;
+
+        function showSlide(slideIndex) {
+            // Remove active class from all slides
+            slides.forEach(slide => slide.classList.remove('active'));
+            
+            // Ensure slideIndex is within bounds
+            if (slideIndex >= totalSlides) {
+                currentSlide = totalSlides - 1;
+            } else if (slideIndex < 0) {
+                currentSlide = 0;
+            } else {
+                currentSlide = slideIndex;
+            }
+            
+            // Show current slide
+            slides[currentSlide].classList.add('active');
+            
+            // Update navigation
+            updateNavigation();
+        }
+
+        function nextSlide() {
+            if (currentSlide < totalSlides - 1) {
+                showSlide(currentSlide + 1);
+            }
+        }
+
+        function prevSlide() {
+            if (currentSlide > 0) {
+                showSlide(currentSlide - 1);
+            }
+        }
+
+        function updateNavigation() {
+            const prevBtn = document.getElementById('prevBtn');
+            const nextBtn = document.getElementById('nextBtn');
+            const slideCounter = document.getElementById('slideCounter');
+            
+            // Update button states
+            prevBtn.disabled = (currentSlide === 0);
+            nextBtn.disabled = (currentSlide === totalSlides - 1);
+            
+            // Update counter
+            slideCounter.textContent = `${currentSlide + 1} / ${totalSlides}`;
+        }
+
+        // Event listeners for buttons
+        document.getElementById('prevBtn').addEventListener('click', prevSlide);
+        document.getElementById('nextBtn').addEventListener('click', nextSlide);
+
+        // Keyboard navigation
+        document.addEventListener('keydown', function(event) {
+            switch(event.key) {
+                case 'ArrowRight':
+                case ' ':
+                    nextSlide();
+                    event.preventDefault();
+                    break;
+                case 'ArrowLeft':
+                    prevSlide();
+                    event.preventDefault();
+                    break;
+                case 'Home':
+                    showSlide(0);
+                    event.preventDefault();
+                    break;
+                case 'End':
+                    showSlide(totalSlides - 1);
+                    event.preventDefault();
+                    break;
+            }
+        });
+
+        // Prevent default scroll behavior for arrow keys
+        window.addEventListener('keydown', function(e) {
+            if(['Space','ArrowUp','ArrowDown','ArrowLeft','ArrowRight'].indexOf(e.code) > -1) {
+                e.preventDefault();
+            }
+        }, false);
+
+        // Initialize navigation on page load
+        document.addEventListener('DOMContentLoaded', function() {
+            updateNavigation();
+        });
+    </script>
+</body>
+</html>
