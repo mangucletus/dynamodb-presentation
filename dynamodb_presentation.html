@@ -637,8 +637,8 @@
                                 <li>Example: User profiles</li>
                             </ul>
                             <div class="code-example">
-Table: Users
-Primary Key: UserId (Partition Key)
+Table: Users,
+Primary Key: UserId(Partition Key)
                             </div>
                         </div>
                         <div class="feature-box">
@@ -650,8 +650,8 @@ Primary Key: UserId (Partition Key)
                                 <li>Example: Time-series data</li>
                             </ul>
                             <div class="code-example">
-Table: GameScores
-Partition Key: UserId
+Table: GameScores,
+Partition Key: UserId,
 Sort Key: GameTitle
                             </div>
                         </div>
@@ -756,8 +756,8 @@ Sort Key: GameTitle
                     <div class="feature-box">
                         <h3>Example: Football League Table</h3>
                         <div class="code-example">
-Base Table: Player data with UserId (PK) + GameTitle (SK)
-GSI: PlayersByTeam - TeamId (PK) + PlayerName (SK)
+Base Table: Player data with UserId (PK) + GameTitle (SK),
+GSI: PlayersByTeam - TeamId (PK) + PlayerName (SK),
 Use case: "Show all players for Manchester United"
                         </div>
                     </div>
