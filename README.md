@@ -1,6 +1,6 @@
 # DynamoDB Student Records Demo
 
-Presentation slides [Amazon DynamoDB Fundamentals presentation](./dynamodb_presentation.html).
+<!-- Presentation slides [Amazon DynamoDB Fundamentals presentation](./dynamodb_presentation.html). -->
 
 ## Overview
 This repository provides step-by-step instructions for a DynamoDB demo using the AWS Management Console, showcasing a `StudentRecords` database. The demo covers creating a table, adding a Global Secondary Index (GSI), performing querying and scanning operations (including PartiQL), enabling Point-in-Time Recovery (PITR), and cleaning up resources. 
