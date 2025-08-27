@@ -1,0 +1,24 @@
+[
+  {
+    "CourseName": {
+      "S": "ENGLISH"
+    },
+    "Grade": {
+      "N": "60"
+    },
+    "StudentId": {
+      "S": "S103"
+    }
+  },
+  {
+    "CourseName": {
+      "S": "SCIENCE"
+    },
+    "Grade": {
+      "N": "99"
+    },
+    "StudentId": {
+      "S": "S104"
+    }
+  }
+]
